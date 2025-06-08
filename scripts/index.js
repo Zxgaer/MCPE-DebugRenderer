@@ -1,15 +1,64 @@
 import { debugDrawer, DebugLine } from "@minecraft/debug-utilities";
-import { model } from "./obj/cat.js";
-import { system, world } from "@minecraft/server";
+import { model as tux } from "./obj/tux.js" ;
+import { model as creeper } from "./obj/creeper.js" ;
+import { model as suzanne } from "./obj/suzanne.js" ;
+import { model as sword } from "./obj/sword.js" ;
+import { CustomCommandParamType, CommandPermissionLevel,system, world } from "@minecraft/server";
 
 let totalLineCount = 0;
 
-const playerSpawnEvent = world.afterEvents.playerSpawn.subscribe(() => {
+/*const playerSpawnEvent = world.afterEvents.playerSpawn.subscribe(() => {
     const loadedModel = loadOBJ(model);
     system.runJob(renderOBJ(loadedModel, { x: 0, y: 200, z: 0 }, 0.1, 1, { x: 400, y: 400, z: 0}));
 
     world.afterEvents.playerSpawn.unsubscribe(playerSpawnEvent);
-});
+});*/
+
+system.beforeEvents.startup.subscribe(ev => {
+    ev.customCommandRegistry.registerCommand({
+        name:"z:loadmodel",
+        description:"Load 3D Model",
+        permissionLevel : CommandPermissionLevel.Any,
+        mandatoryParameters:[
+            {name:"name",type:CustomCommandParamType.String},
+            {name:"size",type:CustomCommandParamType.Float},
+            {name:"line",type:CustomCommandParamType.Float},
+            {name:"red",type:CustomCommandParamType.Float},
+            {name:"green",type:CustomCommandParamType.Float},
+            {name:"blue",type:CustomCommandParamType.Float}
+        ],
+        optionalParameters:[
+        ]
+    },(ori, ...arg) => {
+        let loadedModel = loadOBJ(creeper);
+        if(arg[0]=='suzanne') loadedModel = loadOBJ(suzanne);
+        else if(arg[0]=='creeper') loadedModel = loadOBJ(creeper);
+        else if(arg[0]=='sword') loadedModel = loadOBJ(sword);
+        else if(arg[0]=='tux') loadedModel = loadOBJ(tux);
+        let bLoc = ori.sourceEntity==undefined?ori.sourceBlock.location:ori.sourceEntity.location
+        if(ori.sourceBlock!=undefined) {
+            bLoc.y+=2
+        }
+        let dis = ori.sourceEntity==undefined?ori.sourceBlock.dimension:ori.sourceEntity.dimension
+        let light = dis.getEntities({name:"Light"})[0].location
+        system.runJob(renderOBJ(loadedModel, bLoc, arg[1], arg[2], 
+                      light,
+                      {r:arg[3],g:arg[4],b:arg[5]}));
+
+    })
+    ev.customCommandRegistry.registerCommand({
+        name:"z:removemodel",
+        description:"Remove 3D Model",
+        permissionLevel : CommandPermissionLevel.Any,
+        mandatoryParameters:[
+        ],
+        optionalParameters:[
+        ]
+    },(ori, arg) => {
+        debugDrawer.removeAll()
+
+    })
+})
 
 function loadOBJ(obj) {
     const verts = [];
@@ -46,7 +95,7 @@ function dot(a, b) {
     return a.x * b.x + a.y * b.y + a.z * b.z;
 }
 
-function* renderOBJ(model, startPos, scale = 1, fill = 1, lightPos = { x: 10, y: 20, z: 10 }) {
+function* renderOBJ(model,startPos,scale = 1,fill = 1,lightPos,baseColor) {
     for (const face of model.faces) {
         const len = face.length;
         let faceNormal = { x: 0, y: 1, z: 0 };
@@ -85,7 +134,9 @@ function* renderOBJ(model, startPos, scale = 1, fill = 1, lightPos = { x: 10, y:
                 z: startPos.z + b.z * scale,
             };
             const line = new DebugLine(from, to);
-            line.color = { red: brightness, green: brightness, blue: brightness };
+            line.color = { red: baseColor.r*brightness, 
+                           green: baseColor.g*brightness,
+                           blue: baseColor.b*brightness };
             debugDrawer.addShape(line);
             totalLineCount++;
         }
@@ -112,7 +163,9 @@ function* renderOBJ(model, startPos, scale = 1, fill = 1, lightPos = { x: 10, y:
                         z: lightPos.z - p.z,
                     });
                     const pointBrightness = Math.max(0.15, dot(faceNormal, pointLightVec));
-                    const color = { red: pointBrightness, green: pointBrightness, blue: pointBrightness };
+                    const color = { red: baseColor.r*pointBrightness, 
+                                    green: baseColor.g*pointBrightness, 
+                                    blue: baseColor.b*pointBrightness };
         
                     let line = new DebugLine(p, {
                         x: startPos.x + v0.x * scale,
